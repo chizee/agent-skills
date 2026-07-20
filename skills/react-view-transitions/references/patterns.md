@@ -114,54 +114,25 @@ Use `key` when content identity changes (state resets). Omit for cross-fades (ta
 
 ## Isolate Elements from Parent Animations
 
-The only way to pull an element out of the browser's animated `root` snapshot is to give it **its own `view-transition-name`**. There is no "exclude from root" primitive.
+Pull an element out of the animated `root` snapshot by giving it its own `view-transition-name`. **`view-transition-name: none` is a no-op** — it's the CSS default, so the element stays in `root` (a common flicker bug). Use a real, unique name, then neutralize with `<ViewTransition default="none">` (no CSS) or CSS (needed for `z-index`/`display` control — see `css-recipes.md`).
 
-> **`view-transition-name: none` does NOT isolate anything.** `none` is the CSS *default* — setting it explicitly is a no-op, and the element stays part of the `root` capture. This is a common bug (e.g. a popover with `style={{ viewTransitionName: 'none' }}` still flickers). Isolation always requires a **real, unique name**; you then neutralize its animation either with `<ViewTransition default="none">` (no CSS) or with CSS pseudo-element rules (needed when you also want `z-index`/`display` control — see below).
+- **Persistent chrome** (nav, sidebar, player bar): `<nav style={{ viewTransitionName: 'persistent-nav' }}>` + isolation CSS. `<ViewTransition default="none">` works too, but its auto-name can't take `z-index`/backdrop `display:none` — hand-name when you need those.
+- **Floating elements** (popovers, menus): left open, they're captured in `root` and flicker on settle. Real name + isolation (`css-recipes.md` → Floating Element Isolation). A static name is fine if only one is mounted (`unmountOnHide`); native top-layer (`popover`/`<dialog>`) settle-flicker is a browser limit.
 
-### Persistent Layout Elements
+## Suspense reveal flicker
 
-Persistent elements (headers, navbars, sidebars) get captured in the page's transition snapshot. Fix with a real `viewTransitionName`:
-
-```jsx
-<nav style={{ viewTransitionName: "persistent-nav" }}>{/* ... */}</nav>
-```
-
-Then add the persistent element isolation CSS from `css-recipes.md`. For `backdrop-blur`/`backdrop-filter`, use the backdrop-blur workaround from `css-recipes.md`.
-
-**`<ViewTransition default="none">` vs. a hand-named group.** Wrapping the element in `<ViewTransition default="none">` also lifts it out of `root` and disables its animation, with *no* CSS — prefer it when animation-off is all you need. But React assigns that boundary an **auto-generated** name you can't target from CSS, so you **cannot** add `z-index` layering or the backdrop-blur `::view-transition-old(...) { display: none }` workaround to it. When you need those (e.g. sticky chrome that must stay above transitioning content, or a blurred sidebar), keep the **hand-named** `viewTransitionName` + explicit CSS. This is inherent, not boilerplate you can delete.
-
-### Floating Elements (popovers, menus, tooltips)
-
-A floating element left **open** while a background transition runs is captured in the `root` snapshot and **flickers as the transition settles**. Give it a real `viewTransitionName` and isolate it:
-
-```jsx
-<SelectPopover style={{ viewTransitionName: 'select-popover' }}>{options}</SelectPopover>
-```
-
-Then freeze it — see "Floating Element Isolation" in `css-recipes.md`.
-
-A static name is safe as long as only one instance is mounted at a time (e.g. the menu uses `unmountOnHide`). If genuinely rendered in the browser **top layer** (native `popover`/`<dialog>`), the settle re-composite is a browser limitation React can't reach — but most portaled popovers are ordinary divs and the real-name fix resolves the flicker.
-
-## Suspense reveal flicker: an element shared between fallback and content
-
-If the **same** element (a title, a heading, a toolbar) is rendered in **both** the Suspense fallback and the resolved content, it briefly **flickers** on reveal — an opacity dip. The reveal cross-fades the fallback out and the content in, and the duplicated element fades against itself. This is a within-page opacity flicker, **not** a shape morph.
-
-**Fix (preferred): move it outside the Suspense boundary.** Render the persistent element *above* `<Suspense>` so it mounts once and never takes part in the fallback→content swap:
+An element rendered in **both** the fallback and the content flickers (opacity dip) on reveal — it fades against itself. Not a morph. **Fix: render it outside the `<Suspense>` boundary** (mount once, above it), or pin it with a `view-transition-name`.
 
 ```jsx
 <h1>{title}</h1>
-<Suspense fallback={<BodySkeleton />}>
-  <Body />
-</Suspense>
+<Suspense fallback={<BodySkeleton />}><Body /></Suspense>
 ```
 
-**Alternative: pin it** — give it its own `view-transition-name` (isolation, above) so it's excluded from the reveal animation. Moving it out is simpler. If a control genuinely *changes* between fallback and content and must stay inside (e.g. a disabled → enabled search input), giving both the same `view-transition-name` keeps it continuous instead of flickering.
+Don't put a manual `viewTransitionName` on the root DOM node inside `<ViewTransition>` — React's auto-name overrides it.
 
-Don't put manual `viewTransitionName` on the root DOM node inside `<ViewTransition>` — React's auto-generated name overrides it.
+## Sliding Indicator (tabs)
 
-## Sliding Indicator (tabs / segmented control)
-
-A single active-indicator (underline, pill) that **slides** to the selected tab is the same shared-element mechanism: render the indicator **only under the active tab**, give every tab's indicator the **same `name`**, and it morphs from the old position to the new one on change. Animate the group (the slide); disable old/new so the solid bar doesn't cross-fade.
+One shared-name indicator rendered under the **committed** active tab morphs between positions on change (slide the group, disable old/new — see `css-recipes.md` → Sliding Indicator). Key it to committed `active` (bar sits where nav landed); `useOptimistic` drives the label instantly; use a distinct `indicatorName` per tab strip.
 
 ```tsx
 'use client';
@@ -173,29 +144,22 @@ export function Tabs({ tabs, active, indicatorName = 'tab-indicator' }) {
   const [, startTransition] = useTransition();
   return (
     <nav>
-      {tabs.map(t => {
-        const isCommitted = active === t.value;
-        return (
-          <Link key={t.value} href={t.href} scroll={false}
-            aria-current={optimisticActive === t.value ? 'page' : undefined}
-            onNavigate={() => startTransition(() => setOptimisticActive(t.value))}>
-            <span>{t.label}</span>
-            {isCommitted && (
-              <ViewTransition name={indicatorName} share="tab-underline">
-                <span className="active-underline" aria-hidden />
-              </ViewTransition>
-            )}
-          </Link>
-        );
-      })}
+      {tabs.map(t => (
+        <Link key={t.value} href={t.href} scroll={false}
+          aria-current={optimisticActive === t.value ? 'page' : undefined}
+          onNavigate={() => startTransition(() => setOptimisticActive(t.value))}>
+          <span>{t.label}</span>
+          {active === t.value && (
+            <ViewTransition name={indicatorName} share="tab-underline">
+              <span className="active-underline" aria-hidden />
+            </ViewTransition>
+          )}
+        </Link>
+      ))}
     </nav>
   );
 }
 ```
-
-See "Sliding Indicator" in `css-recipes.md` for the `share="tab-underline"` CSS.
-
-Key details: the indicator is keyed to the **committed** `active` (so the bar sits where navigation actually landed), while `useOptimistic` drives the *label* state instantly; give each mount point a distinct `indicatorName` so two tab strips on one page don't fight over one name.
 
 ## Reusable Animated Collapse
 
@@ -289,9 +253,9 @@ The `types` array (second argument) lets you vary animation based on transition 
 
 **"Two ViewTransition components with the same name":** Names must be globally unique. Use IDs: `name={`hero-${item.id}`}`.
 
-**Scrolling hangs / feels stuck while a transition animates (esp. a Suspense reveal):** the browser's `::view-transition` overlay is `position: fixed` over the viewport, and the old/new snapshots don't scroll with the page — so scrolling appears frozen until the animation settles. This is a **browser/CSS View Transitions limitation**, not something React can hide (skipping the transition on scroll snaps abruptly to the end). Mitigate by keeping reveal durations short (200–400ms). For genuinely scroll-driven UI, gesture transitions (the experimental `useSwipeTransition` / `startGestureTransition`, if available in your React build) are scrubbed by scroll position so scrolling *drives* the transition instead of fighting it.
+**Scrolling hangs while a transition animates:** the `::view-transition` overlay is `position: fixed` and its snapshots don't scroll — a browser limitation, not fixable in React (skipping snaps to the end). Keep reveal durations short; for scroll-driven UI use gesture transitions (experimental `useSwipeTransition`, if available).
 
-**Open popover/menu flickers when a background transition settles:** the floating element is captured in the `root` snapshot. Give it a real `view-transition-name` + isolation CSS — see "Floating Elements" above. (`viewTransitionName: 'none'` does not fix it — that's the CSS default.)
+**Open popover flickers when a background transition settles:** it's captured in `root`. Give it a real `view-transition-name` + isolation (not `none`) — see "Floating Elements".
 
 **`router.back()` and browser back/forward skip animation:** Use `router.push()` with an explicit URL instead. See SKILL.md "router.back() and Browser Back Button."
 

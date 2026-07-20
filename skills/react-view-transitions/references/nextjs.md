@@ -169,18 +169,15 @@ When navigating between dynamic segments of the same route (e.g., `/collection/[
 
 ---
 
-## Shared Elements Behind a Data-Fetching `<Suspense>` (the "it only morphs the skeleton" trap)
+## Shared Elements Across a Suspense Boundary
 
-A shared-element morph needs **both** the source *and* the target named element present **at the navigation snapshot** — the instant the transition starts. If the destination's `<ViewTransition name={...}>` sits **inside** a `<Suspense>` that's waiting on a data fetch, then at snapshot time the destination shell contains only the *skeleton* — the named element doesn't exist yet, no pair forms, and you'll see only the skeleton's auto-named groups animate (never your `name`d group). This looks like "shared elements don't work here," but it's a **placement** problem, not a limitation.
+A cross-navigation morph needs the target named element present at the navigation snapshot. If the destination `<ViewTransition name>` sits **inside** a `<Suspense>` awaiting a fetch, only the skeleton is in the shell at snapshot time — no pair forms, so nothing morphs. A placement issue, not a limitation.
 
-**Fix: hoist the shared element into the shell, fed only by fast/cached data; stream the slow data inside it.** Put the named element in the route's `layout.tsx` (or above the data `<Suspense>`), keyed only by `params`:
+**It morphs fine when the target is in the shell / cached.** Put the named element in `layout.tsx` keyed only by `params` (fast), and stream the slow data inside:
 
 ```tsx
 // app/thing/[slug]/layout.tsx
-export default async function Layout({
-  children,
-  params,
-}: {
+export default async function Layout({ children, params }: {
   children: React.ReactNode;
   params: Promise<{ slug: string }>;
 }) {
@@ -193,17 +190,13 @@ export default async function Layout({
 }
 ```
 
-The slow header/body stream **inside** `{children}` with their own reveal; the layout only needs `params` (fast), so the morph target is in the shell at navigation time.
+For a *visual* target (album art, product image), back it with a fast, cached, param-only query (e.g. just the cover color) and keep the heavy fetch behind the inner `<Suspense>`.
 
-The morph target exists in the shell the moment you navigate (it only needs `slug` from the URL), so it pairs with the list-side card and morphs immediately; the data fills in after. If the shared element is a *visual* (album art, product image) rather than the whole container, back it with a **fast, cached, param-only** query (e.g. just the cover color/URL) and keep the heavy per-entity fetch behind the inner `<Suspense>`.
+**Instant routes:** reading `params` in the shell can trip *"params accessed outside `<Suspense>`"* on instant-prerenderable routes. Keep the shell read param-only and cached, or opt that route out of instant.
 
-### Interaction with instant / prerenderable routes (Cache Components)
+## Nested enter/exit — `parentEnter` / `parentExit` (experimental)
 
-Placing the shared element in the shell means reading `params` **outside** the data `<Suspense>`. On instant-prerenderable routes this can trip *"params accessed outside of `<Suspense>` prevents the route from being prerendered."* That's expected — the shared-element shell and a fully-streamed instant route pull in opposite directions. Resolve it by keeping the shell's read **param-only and cached/fast** (so the shell is cheap), or opt the route out of instant prerendering where the morph matters. Do **not** conclude the morph is "structurally impossible" — it's the shared element being mis-placed behind the fetch, plus this params-in-shell tradeoff.
-
-## Nested enter/exit for Suspense reveals — `parentEnter` / `parentExit` (experimental, evolving)
-
-The long-standing rule "nested `<ViewTransition>`s don't fire enter/exit inside a parent VT" is being lifted by the experimental **`parentEnter` / `parentExit`** props (and `onParentEnter` / `onParentExit` handlers): a nested VT can define how *it* animates when a **parent** enters/exits, and `parentEnter="none"` stops the propagation into a subtree. Client support exists today (behind `enableViewTransitionParentEnterExit`, i.e. experimental React); SSR/streaming support for **Suspense reveals** was added in React PR #36917 ([commit](https://github.com/react/react/commit/83840902c890f0eb85decda239ef6b1b14945779)). Treat it as a **future/experimental** capability — verify it's in your bundled React before relying on it (`grep -r "vt-parent-enter" node_modules/next/dist/compiled/react*`). It is *not* a fix for root-captured persistent/floating isolation or the scroll-hang.
+Lifts the "nested VTs don't fire enter/exit inside a parent" rule: a nested VT can animate when its **parent** enters/exits (`parentEnter`/`parentExit`, `onParentEnter`/`onParentExit`; `parentEnter="none"` stops propagation). Client-only today (behind `enableViewTransitionParentEnterExit`); SSR support for Suspense reveals landed in React PR #36917 ([commit](https://github.com/react/react/commit/83840902c890f0eb85decda239ef6b1b14945779)). Verify it's in your React (`grep -r "vt-parent-enter" node_modules/next/dist/compiled/react*`) before relying on it.
 
 ## Server Components
 
