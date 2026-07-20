@@ -146,9 +146,11 @@ A floating element left **open** while a background transition runs is captured 
 
 A static name is safe as long as only one instance is mounted at a time (e.g. the menu uses `unmountOnHide`). If genuinely rendered in the browser **top layer** (native `popover`/`<dialog>`), the settle re-composite is a browser limitation React can't reach — but most portaled popovers are ordinary divs and the real-name fix resolves the flicker.
 
-## Shared Controls Between Skeleton and Content
+## Shared Controls / Text Between Skeleton and Content (fixing the reveal flicker)
 
-Give matching controls in fallback and content the same `viewTransitionName`:
+**Why an element that appears in *both* the fallback and the resolved content flickers:** they're two different DOM nodes across the Suspense swap. Without a shared name the browser snapshots them separately and **cross-fades** (old fades out while new fades in) — with text or a solid bar of different size/content, that reads as a ghost/flicker. It is **not** a "pin it" problem — pinning (isolation) freezes the element; here you *want* continuity.
+
+**Fix: morph the fallback shape into the content shape.** Give the matching element in fallback and content the **same `view-transition-name`**, and — critically for text/solid shapes — animate only the **group** (position/size) while disabling the old/new cross-fade:
 
 ```jsx
 // Fallback
@@ -157,7 +159,64 @@ Give matching controls in fallback and content the same `viewTransitionName`:
 <input placeholder="Search..." style={{ viewTransitionName: 'search-input' }} />
 ```
 
+```css
+/* the group interpolates position + size = a smooth morph */
+::view-transition-group(search-input) { animation-duration: 220ms; }
+/* no cross-fade of the two snapshots = no ghost/flicker */
+::view-transition-old(search-input),
+::view-transition-new(search-input) { animation: none; }
+```
+
+So yes — you *can* "morph the fallback too": the fallback element and the content element sharing one name is what makes the fallback shape animate into the content shape instead of flickering. Blanket-avoiding it ("never put the same element in both") works but forfeits the nicest reveal; the shared-name + group-only morph is the better default.
+
 Don't put manual `viewTransitionName` on the root DOM node inside `<ViewTransition>` — React's auto-generated name overrides it.
+
+## Sliding Indicator (tabs / segmented control)
+
+A single active-indicator (underline, pill) that **slides** to the selected tab is the same shared-element mechanism: render the indicator **only under the active tab**, give every tab's indicator the **same `name`**, and it morphs from the old position to the new one on change. Animate the group (the slide); disable old/new so the solid bar doesn't cross-fade.
+
+```tsx
+'use client';
+import { useOptimistic, useTransition, ViewTransition } from 'react';
+
+export function Tabs({ tabs, active, indicatorName = 'tab-indicator' }) {
+  const [optimisticActive, setOptimisticActive] = useOptimistic(active);
+  const [, startTransition] = useTransition();
+  return (
+    <nav>
+      {tabs.map(t => {
+        const isCommitted = active === t.value;              // where the bar actually is
+        return (
+          <Link key={t.value} href={t.href} scroll={false}
+            aria-current={optimisticActive === t.value ? 'page' : undefined}
+            onNavigate={() => startTransition(() => setOptimisticActive(t.value))}>
+            <span>{t.label}</span>
+            {isCommitted && (
+              <ViewTransition name={indicatorName} share="tab-underline">
+                <span className="active-underline" aria-hidden />
+              </ViewTransition>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+```
+
+```css
+::view-transition-group(.tab-underline) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.5, 0, 0.2, 1);
+}
+::view-transition-old(.tab-underline),
+::view-transition-new(.tab-underline) {
+  animation: none;   /* don't fade the two bars — just let the group slide */
+  height: 100%;      /* both snapshots fill so it reads as one solid moving bar */
+}
+```
+
+Key details: the indicator is keyed to the **committed** `active` (so the bar sits where navigation actually landed), while `useOptimistic` drives the *label* state instantly; give each mount point a distinct `indicatorName` so two tab strips on one page don't fight over one name.
 
 ## Reusable Animated Collapse
 
