@@ -119,7 +119,7 @@ Reserve directional slides for hierarchical navigation (list → detail) and ord
 
 - **Next.js:** Do **not** install `react@canary` — the App Router already bundles React canary internally. `ViewTransition` works out of the box. `npm ls react` may show a stable-looking version; this is expected.
 - **Without Next.js:** Install `react@canary react-dom@canary` (`ViewTransition` is not in stable React).
-- Browser support: Chromium 125+, Firefox 144+, Safari 18.2+. React requires the v2 object form of `startViewTransition` and deliberately falls back to not animating on older engines (Chromium 111–124 only has the v1 callback form). Graceful degradation on unsupported browsers.
+- Browser support: Chromium 125+ (React needs the v2 object form of `startViewTransition`), Firefox 144+, Safari 18.2+. Graceful degradation on unsupported browsers.
 
 ---
 
@@ -252,7 +252,7 @@ export function DirectionalTransition({ children }: { children: React.ReactNode 
 
 ### `router.back()` and Browser Back Button
 
-`router.back()` and the browser's back/forward buttons carry **no transition types**, so type-keyed animations (directional slides) resolve to their `default` and don't play. Untyped animations — shared-element morphs with matching `name`s, bare/`auto` VTs — can still run. (React may also render `popstate`-scheduled transitions eagerly/synchronously to keep back/forward instant, skipping transitions in some cases.) For a fully animated back affordance, use `router.push()` with an explicit URL.
+`router.back()` and the browser's back/forward buttons carry **no transition types**, so type-keyed animations (directional slides) resolve to their `default` and don't play — untyped shared-element morphs still apply. For typed animations, use `router.push()` with an explicit URL.
 
 ### Types and Suspense
 
@@ -363,7 +363,7 @@ Every VT matching the trigger fires simultaneously in a single `document.startVi
 
 Without it, every VT fires the browser cross-fade on **every** transition — Suspense resolves, `useDeferredValue` updates, background revalidations. Use `default="none"` on named/shared elements and type-keyed page VTs.
 
-But know what it turns off: `default="none"` also disables `update` (layout displacement morphs — list reflow, sections gliding when content above changes) and `share` (a named pair with `default="none"` and no explicit `share` prop silently never morphs). Keyed list items and displaced siblings *want* update — leave them bare or set `update="auto"` explicitly.
+But it also turns off `update` (layout/reflow morphs) and `share` (a named pair with no explicit `share` prop never morphs). Keyed list items and displaced siblings *want* update — leave them bare or set `update="auto"`.
 
 ### Two Patterns Coexist
 
@@ -699,7 +699,7 @@ Pull an element out of the animated `root` snapshot by giving it its own `view-t
 
 - **Persistent chrome** (nav, sidebar, player bar): `<nav style={{ viewTransitionName: 'persistent-nav' }}>` + isolation CSS. `<ViewTransition default="none">` works too, but its auto-name can't take `z-index`/backdrop `display:none` — hand-name when you need those.
 - **Floating elements** (popovers, menus): left open, they're captured in `root` and flicker on settle. Real name + isolation (the CSS Animation Recipes section → Floating Element Isolation). A static name is fine if only one is mounted (`unmountOnHide`); native top-layer (`popover`/`<dialog>`) settle-flicker is a browser limit.
-- **Naming an interactive element has a cost:** named participants are skipped by hit-testing while a transition runs — hover, cursor, and clicks fall through to whatever is beneath for the transition's duration (spec behavior; [csswg#10930](https://github.com/w3c/csswg-drafts/issues/10930)). Always **portal** a named popover/menu so those fallback hits stay inside its own subtree: rendered inline in a clickable row, mid-transition clicks hover/activate the row behind it, and outside-click detection closes the popover.
+- **Naming an interactive element has a cost:** named participants are skipped by hit-testing while a transition runs ([csswg#10930](https://github.com/w3c/csswg-drafts/issues/10930)) — clicks and hover fall through to whatever is beneath. Portal named popovers/menus; rendered inline in a clickable row, mid-transition clicks activate the row and read as outside-clicks that close the popover.
 
 ## Suspense reveal flicker
 
@@ -759,7 +759,7 @@ Only content inside an activated boundary animates position — everything else 
 
 The section — heading included — morphs as one group when rows above are added or removed. Nothing inside the section changed; the *displacement* is the update.
 
-- React activates VT boundaries that are direct children (not behind an intermediate DOM node) of nodes along the changed path — siblings of the mutation and of its ancestors qualify; a VT buried under an extra wrapper element in a sibling does not (deliberate: page-wide re-layout would otherwise fire noisy animations everywhere). Place the boundary as a direct sibling of the changing content.
+- React only measures boundaries that are direct children of nodes along the changed path — a VT buried under an extra wrapper element won't activate. Place the boundary as a direct sibling of the changing content.
 - `default="none"` disables exactly this morph — it turns off `update`. Named/shared elements get `default="none"`; displaced siblings and keyed list items stay bare or set `update="auto"`.
 
 ## Reusable Animated Collapse
@@ -868,13 +868,13 @@ The `types` array (second argument) lets you vary animation based on transition 
 
 **Section below a list teleports instead of gliding:** it's outside any activated boundary, its VT has `default="none"` (which disables `update`), or it isn't an immediate sibling of the changing content. See "Layout Displacement Morph" above.
 
-**`router.back()` and browser back/forward skip the directional slide:** traversals carry no transition types, so type-keyed maps resolve to `default` — untyped shared-element morphs still apply. Use `router.push()` with an explicit URL for typed animations. See SKILL.md "router.back() and Browser Back Button."
+**`router.back()` and browser back/forward skip the directional slide:** traversals carry no transition types, so type-keyed maps resolve to `default` — untyped shared-element morphs still apply. Use `router.push()` for typed animations.
 
 **`flushSync` skips animations:** Use `startTransition` instead.
 
 **Only updates animate (no enter/exit):** Without `<Suspense>`, React treats swaps as updates. Conditionally render the VT itself, or wrap in `<Suspense>`.
 
-**Layout VT prevents page VTs from animating:** nested VTs don't fire their own enter/exit when they mount/unmount *as one unit* with a parent VT — only the outermost animates. (A child VT swapped inside a persistent parent fires normally; if page enter/exit is dead under a persistent layout VT, check the page VT isn't below a plain DOM node instead.) If your layout has a VT wrapping `{children}`, remove it and put VTs in pages.
+**Layout VT prevents page VTs from animating:** nested VTs skip their own enter/exit only when they mount/unmount *as one unit* with a parent VT. If page enter/exit is dead under a persistent layout VT, the usual culprit is a DOM node above the page VT. Keep VTs in pages, not layouts.
 
 **List reorder not animating with `useOptimistic`:** Optimistic values resolve before snapshot. Use committed state for list order.
 
@@ -1100,7 +1100,7 @@ Usage: `<ViewTransition enter="scale-in" exit="scale-out" />`
 
 ## Interactivity During Transitions
 
-The `::view-transition` overlay covers the viewport and captures all pointer events by default. React partially handles this: when the root group doesn't need to animate, it shrinks the overlay to zero size so the page stays interactive — but it deliberately leaves `pointer-events` alone so in-flight animations still block clicks (so they don't land on whatever is beneath a moving snapshot). To let clicks and hover pass through even while animations run:
+The `::view-transition` overlay captures all pointer events. React shrinks it to zero when the root group doesn't animate, but in-flight animations still block clicks. To pass clicks/hover through even while animating:
 
 ```css
 ::view-transition {
@@ -1108,7 +1108,7 @@ The `::view-transition` overlay covers the viewport and captures all pointer eve
 }
 ```
 
-Trade-off: clicks during an animation can now hit live elements underneath still-moving snapshots. And it only restores interactivity for **unnamed** content — elements participating in the transition (anything with a `view-transition-name`) are skipped by hit-testing for the transition's duration, spec behavior with no CSS override ([csswg#10930](https://github.com/w3c/csswg-drafts/issues/10930)). Weigh that cost before naming interactive elements, and portal named popovers (see the Patterns and Guidelines section → Isolate Elements from Parent Animations).
+Trade-offs: clicks can hit live elements under still-moving snapshots, and it only helps **unnamed** content — named participants are skipped by hit-testing for the transition's duration, no CSS override ([csswg#10930](https://github.com/w3c/csswg-drafts/issues/10930)). Weigh that before naming interactive elements; portal named popovers (see the Patterns and Guidelines section).
 
 ---
 
@@ -1186,7 +1186,7 @@ One shared-name indicator morphs between positions. Slide the group; disable old
 
 ## Setup
 
-`<ViewTransition>` works out of the box — the bundled React canary ships it, and every `<Link>` navigation already runs inside `React.startTransition`, so react-dom starts a view transition whenever affected `<ViewTransition>` components exist. The documented flag:
+`<ViewTransition>` works out of the box — the bundled React canary ships it, and every `<Link>` navigation runs inside `React.startTransition`, so react-dom starts a view transition whenever affected `<ViewTransition>` components exist. Set the documented flag:
 
 ```js
 // next.config.js
@@ -1196,7 +1196,7 @@ const nextConfig = {
 module.exports = nextConfig;
 ```
 
-The official docs instruct setting this flag; keep it. Historically it switched the bundled React to the **experimental channel** — required back when `ViewTransition` was experimental-only — but since React released `ViewTransition` to canary (Oct 2025), the canary React that App Router bundles has full support and the flag no longer switches channels. Today the experimental channel is selected by *other* flags (`gestureTransition`, `blockingSSR`, `taint`, `transitionIndicator`), and only experimental-channel features need it: gesture transitions (`useSwipeTransition`) and `parentEnter`/`parentExit`.
+(Historically the flag switched React to the experimental channel — required before `ViewTransition` reached canary. It no longer does; the experimental channel is only needed for `useSwipeTransition` gestures and `parentEnter`/`parentExit`, selected by other flags like `gestureTransition`.)
 
 Because every link click is a transition, any VT with `default="auto"` fires on **every** navigation — use `default="none"` to prevent competing animations.
 
@@ -1379,7 +1379,7 @@ If the pair's `share` is type-keyed (or classed via CSS that expects a type), ev
 
 ## Same-Route Dynamic Segment Transitions
 
-When navigating between dynamic segments of the same route (e.g., `/collection/[slug]`), the router swaps subtrees keyed by the segment value (or re-shows Activity-cached ones) rather than doing a plain unmount/mount — so enter/exit don't fire reliably. Use `key` + `name` + `share`:
+When navigating between dynamic segments of the same route (e.g., `/collection/[slug]`), the router swaps subtrees keyed by the segment value rather than doing a plain unmount/mount — enter/exit don't fire reliably. Use `key` + `name` + `share`:
 
 ```tsx
 <Suspense fallback={<Skeleton />}>
@@ -1397,7 +1397,7 @@ When navigating between dynamic segments of the same route (e.g., `/collection/[
 
 ## Nested enter/exit — `parentEnter` / `parentExit` (experimental)
 
-Lifts the "nested VTs don't fire enter/exit inside a parent" rule: a nested VT can animate when its **parent** enters/exits (`parentEnter`/`parentExit`, `onParentEnter`/`onParentExit`; `parentEnter="none"` stops propagation). Experimental-channel only today (behind `enableViewTransitionParentEnterExit = __EXPERIMENTAL__`); SSR support for Suspense reveals landed in React PR #36917 ([commit](https://github.com/facebook/react/commit/83840902c890f0eb85decda239ef6b1b14945779)). Verify it's in the React your app actually runs: `grep -c "parentEnter" node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.production.js` — 0 means unavailable (Next only uses the experimental channel when a flag from `needs-experimental-react.ts` is set: `gestureTransition`, `blockingSSR`, `taint`, or `transitionIndicator`).
+Lifts the "nested VTs don't fire enter/exit inside a parent" rule: a nested VT can animate when its **parent** enters/exits (`parentEnter`/`parentExit`, `onParentEnter`/`onParentExit`; `parentEnter="none"` stops propagation). Experimental-channel only today; SSR support landed in React PR #36917 ([commit](https://github.com/facebook/react/commit/83840902c890f0eb85decda239ef6b1b14945779)). Verify it's in the React your app runs: `grep -c "parentEnter" node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.production.js` — 0 means unavailable (Next uses the experimental channel only when `gestureTransition`/`blockingSSR`/`taint`/`transitionIndicator` is set).
 
 ## Server Components
 

@@ -44,7 +44,7 @@ Reserve directional slides for hierarchical navigation (list → detail) and ord
 
 - **Next.js:** Do **not** install `react@canary` — the App Router already bundles React canary internally. `ViewTransition` works out of the box. `npm ls react` may show a stable-looking version; this is expected.
 - **Without Next.js:** Install `react@canary react-dom@canary` (`ViewTransition` is not in stable React).
-- Browser support: Chromium 125+, Firefox 144+, Safari 18.2+. React requires the v2 object form of `startViewTransition` and deliberately falls back to not animating on older engines (Chromium 111–124 only has the v1 callback form). Graceful degradation on unsupported browsers.
+- Browser support: Chromium 125+ (React needs the v2 object form of `startViewTransition`), Firefox 144+, Safari 18.2+. Graceful degradation on unsupported browsers.
 
 ---
 
@@ -177,7 +177,7 @@ export function DirectionalTransition({ children }: { children: React.ReactNode 
 
 ### `router.back()` and Browser Back Button
 
-`router.back()` and the browser's back/forward buttons carry **no transition types**, so type-keyed animations (directional slides) resolve to their `default` and don't play. Untyped animations — shared-element morphs with matching `name`s, bare/`auto` VTs — can still run. (React may also render `popstate`-scheduled transitions eagerly/synchronously to keep back/forward instant, skipping transitions in some cases.) For a fully animated back affordance, use `router.push()` with an explicit URL.
+`router.back()` and the browser's back/forward buttons carry **no transition types**, so type-keyed animations (directional slides) resolve to their `default` and don't play — untyped shared-element morphs still apply. For typed animations, use `router.push()` with an explicit URL.
 
 ### Types and Suspense
 
@@ -288,7 +288,7 @@ Every VT matching the trigger fires simultaneously in a single `document.startVi
 
 Without it, every VT fires the browser cross-fade on **every** transition — Suspense resolves, `useDeferredValue` updates, background revalidations. Use `default="none"` on named/shared elements and type-keyed page VTs.
 
-But know what it turns off: `default="none"` also disables `update` (layout displacement morphs — list reflow, sections gliding when content above changes) and `share` (a named pair with `default="none"` and no explicit `share` prop silently never morphs). Keyed list items and displaced siblings *want* update — leave them bare or set `update="auto"` explicitly.
+But it also turns off `update` (layout/reflow morphs) and `share` (a named pair with no explicit `share` prop never morphs). Keyed list items and displaced siblings *want* update — leave them bare or set `update="auto"`.
 
 ### Two Patterns Coexist
 

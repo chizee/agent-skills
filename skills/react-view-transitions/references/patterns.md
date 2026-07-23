@@ -118,7 +118,7 @@ Pull an element out of the animated `root` snapshot by giving it its own `view-t
 
 - **Persistent chrome** (nav, sidebar, player bar): `<nav style={{ viewTransitionName: 'persistent-nav' }}>` + isolation CSS. `<ViewTransition default="none">` works too, but its auto-name can't take `z-index`/backdrop `display:none` — hand-name when you need those.
 - **Floating elements** (popovers, menus): left open, they're captured in `root` and flicker on settle. Real name + isolation (`css-recipes.md` → Floating Element Isolation). A static name is fine if only one is mounted (`unmountOnHide`); native top-layer (`popover`/`<dialog>`) settle-flicker is a browser limit.
-- **Naming an interactive element has a cost:** named participants are skipped by hit-testing while a transition runs — hover, cursor, and clicks fall through to whatever is beneath for the transition's duration (spec behavior; [csswg#10930](https://github.com/w3c/csswg-drafts/issues/10930)). Always **portal** a named popover/menu so those fallback hits stay inside its own subtree: rendered inline in a clickable row, mid-transition clicks hover/activate the row behind it, and outside-click detection closes the popover.
+- **Naming an interactive element has a cost:** named participants are skipped by hit-testing while a transition runs ([csswg#10930](https://github.com/w3c/csswg-drafts/issues/10930)) — clicks and hover fall through to whatever is beneath. Portal named popovers/menus; rendered inline in a clickable row, mid-transition clicks activate the row and read as outside-clicks that close the popover.
 
 ## Suspense reveal flicker
 
@@ -178,7 +178,7 @@ Only content inside an activated boundary animates position — everything else 
 
 The section — heading included — morphs as one group when rows above are added or removed. Nothing inside the section changed; the *displacement* is the update.
 
-- React activates VT boundaries that are direct children (not behind an intermediate DOM node) of nodes along the changed path — siblings of the mutation and of its ancestors qualify; a VT buried under an extra wrapper element in a sibling does not (deliberate: page-wide re-layout would otherwise fire noisy animations everywhere). Place the boundary as a direct sibling of the changing content.
+- React only measures boundaries that are direct children of nodes along the changed path — a VT buried under an extra wrapper element won't activate. Place the boundary as a direct sibling of the changing content.
 - `default="none"` disables exactly this morph — it turns off `update`. Named/shared elements get `default="none"`; displaced siblings and keyed list items stay bare or set `update="auto"`.
 
 ## Reusable Animated Collapse
@@ -287,13 +287,13 @@ The `types` array (second argument) lets you vary animation based on transition 
 
 **Section below a list teleports instead of gliding:** it's outside any activated boundary, its VT has `default="none"` (which disables `update`), or it isn't an immediate sibling of the changing content. See "Layout Displacement Morph" above.
 
-**`router.back()` and browser back/forward skip the directional slide:** traversals carry no transition types, so type-keyed maps resolve to `default` — untyped shared-element morphs still apply. Use `router.push()` with an explicit URL for typed animations. See SKILL.md "router.back() and Browser Back Button."
+**`router.back()` and browser back/forward skip the directional slide:** traversals carry no transition types, so type-keyed maps resolve to `default` — untyped shared-element morphs still apply. Use `router.push()` for typed animations.
 
 **`flushSync` skips animations:** Use `startTransition` instead.
 
 **Only updates animate (no enter/exit):** Without `<Suspense>`, React treats swaps as updates. Conditionally render the VT itself, or wrap in `<Suspense>`.
 
-**Layout VT prevents page VTs from animating:** nested VTs don't fire their own enter/exit when they mount/unmount *as one unit* with a parent VT — only the outermost animates. (A child VT swapped inside a persistent parent fires normally; if page enter/exit is dead under a persistent layout VT, check the page VT isn't below a plain DOM node instead.) If your layout has a VT wrapping `{children}`, remove it and put VTs in pages.
+**Layout VT prevents page VTs from animating:** nested VTs skip their own enter/exit only when they mount/unmount *as one unit* with a parent VT. If page enter/exit is dead under a persistent layout VT, the usual culprit is a DOM node above the page VT. Keep VTs in pages, not layouts.
 
 **List reorder not animating with `useOptimistic`:** Optimistic values resolve before snapshot. Use committed state for list order.
 

@@ -206,7 +206,7 @@ Usage: `<ViewTransition enter="scale-in" exit="scale-out" />`
 
 ## Interactivity During Transitions
 
-The `::view-transition` overlay covers the viewport and captures all pointer events by default. React partially handles this: when the root group doesn't need to animate, it shrinks the overlay to zero size so the page stays interactive — but it deliberately leaves `pointer-events` alone so in-flight animations still block clicks (so they don't land on whatever is beneath a moving snapshot). To let clicks and hover pass through even while animations run:
+The `::view-transition` overlay captures all pointer events. React shrinks it to zero when the root group doesn't animate, but in-flight animations still block clicks. To pass clicks/hover through even while animating:
 
 ```css
 ::view-transition {
@@ -214,7 +214,7 @@ The `::view-transition` overlay covers the viewport and captures all pointer eve
 }
 ```
 
-Trade-off: clicks during an animation can now hit live elements underneath still-moving snapshots. And it only restores interactivity for **unnamed** content — elements participating in the transition (anything with a `view-transition-name`) are skipped by hit-testing for the transition's duration, spec behavior with no CSS override ([csswg#10930](https://github.com/w3c/csswg-drafts/issues/10930)). Weigh that cost before naming interactive elements, and portal named popovers (see `patterns.md` → Isolate Elements from Parent Animations).
+Trade-offs: clicks can hit live elements under still-moving snapshots, and it only helps **unnamed** content — named participants are skipped by hit-testing for the transition's duration, no CSS override ([csswg#10930](https://github.com/w3c/csswg-drafts/issues/10930)). Weigh that before naming interactive elements; portal named popovers (see `patterns.md`).
 
 ---
 

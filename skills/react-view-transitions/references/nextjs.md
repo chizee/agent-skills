@@ -2,7 +2,7 @@
 
 ## Setup
 
-`<ViewTransition>` works out of the box — the bundled React canary ships it, and every `<Link>` navigation already runs inside `React.startTransition`, so react-dom starts a view transition whenever affected `<ViewTransition>` components exist. The documented flag:
+`<ViewTransition>` works out of the box — the bundled React canary ships it, and every `<Link>` navigation runs inside `React.startTransition`, so react-dom starts a view transition whenever affected `<ViewTransition>` components exist. Set the documented flag:
 
 ```js
 // next.config.js
@@ -12,7 +12,7 @@ const nextConfig = {
 module.exports = nextConfig;
 ```
 
-The official docs instruct setting this flag; keep it. Historically it switched the bundled React to the **experimental channel** — required back when `ViewTransition` was experimental-only — but since React released `ViewTransition` to canary (Oct 2025), the canary React that App Router bundles has full support and the flag no longer switches channels. Today the experimental channel is selected by *other* flags (`gestureTransition`, `blockingSSR`, `taint`, `transitionIndicator`), and only experimental-channel features need it: gesture transitions (`useSwipeTransition`) and `parentEnter`/`parentExit`.
+(Historically the flag switched React to the experimental channel — required before `ViewTransition` reached canary. It no longer does; the experimental channel is only needed for `useSwipeTransition` gestures and `parentEnter`/`parentExit`, selected by other flags like `gestureTransition`.)
 
 Because every link click is a transition, any VT with `default="auto"` fires on **every** navigation — use `default="none"` to prevent competing animations.
 
@@ -195,7 +195,7 @@ If the pair's `share` is type-keyed (or classed via CSS that expects a type), ev
 
 ## Same-Route Dynamic Segment Transitions
 
-When navigating between dynamic segments of the same route (e.g., `/collection/[slug]`), the router swaps subtrees keyed by the segment value (or re-shows Activity-cached ones) rather than doing a plain unmount/mount — so enter/exit don't fire reliably. Use `key` + `name` + `share`:
+When navigating between dynamic segments of the same route (e.g., `/collection/[slug]`), the router swaps subtrees keyed by the segment value rather than doing a plain unmount/mount — enter/exit don't fire reliably. Use `key` + `name` + `share`:
 
 ```tsx
 <Suspense fallback={<Skeleton />}>
@@ -213,7 +213,7 @@ When navigating between dynamic segments of the same route (e.g., `/collection/[
 
 ## Nested enter/exit — `parentEnter` / `parentExit` (experimental)
 
-Lifts the "nested VTs don't fire enter/exit inside a parent" rule: a nested VT can animate when its **parent** enters/exits (`parentEnter`/`parentExit`, `onParentEnter`/`onParentExit`; `parentEnter="none"` stops propagation). Experimental-channel only today (behind `enableViewTransitionParentEnterExit = __EXPERIMENTAL__`); SSR support for Suspense reveals landed in React PR #36917 ([commit](https://github.com/facebook/react/commit/83840902c890f0eb85decda239ef6b1b14945779)). Verify it's in the React your app actually runs: `grep -c "parentEnter" node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.production.js` — 0 means unavailable (Next only uses the experimental channel when a flag from `needs-experimental-react.ts` is set: `gestureTransition`, `blockingSSR`, `taint`, or `transitionIndicator`).
+Lifts the "nested VTs don't fire enter/exit inside a parent" rule: a nested VT can animate when its **parent** enters/exits (`parentEnter`/`parentExit`, `onParentEnter`/`onParentExit`; `parentEnter="none"` stops propagation). Experimental-channel only today; SSR support landed in React PR #36917 ([commit](https://github.com/facebook/react/commit/83840902c890f0eb85decda239ef6b1b14945779)). Verify it's in the React your app runs: `grep -c "parentEnter" node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.production.js` — 0 means unavailable (Next uses the experimental channel only when `gestureTransition`/`blockingSSR`/`taint`/`transitionIndicator` is set).
 
 ## Server Components
 
