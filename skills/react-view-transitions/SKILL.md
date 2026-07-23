@@ -50,7 +50,7 @@ Reserve directional slides for hierarchical navigation (list → detail) and ord
 
 ## Implementation Workflow
 
-When adding view transitions to an existing app, **follow `references/implementation.md` step by step.** Start with the audit — do not skip it. Copy the CSS recipes from `references/css-recipes.md` into the global stylesheet — do not write your own animation CSS.
+When adding view transitions to an existing app, **follow [references/implementation.md](references/implementation.md) step by step.** Start with the audit — do not skip it. Copy the CSS recipes from [references/css-recipes.md](references/css-recipes.md) into the global stylesheet — do not write your own animation CSS.
 
 ---
 
@@ -118,7 +118,7 @@ If `default` is `"none"`, all triggers are off unless explicitly listed.
 - `::view-transition-group(.class)` — container
 - `::view-transition-image-pair(.class)` — old + new pair
 
-See `references/css-recipes.md` for ready-to-use animation recipes.
+See [references/css-recipes.md](references/css-recipes.md) for ready-to-use animation recipes.
 
 ---
 
@@ -229,7 +229,7 @@ Trigger inside `startTransition`. Avoid wrapper `<div>`s between list and VT.
 
 ### Layout Displacement Morph
 
-Only content inside an activated boundary animates position — everything else teleports to its new layout spot. Wrap the sibling content below a growing/shrinking list in a bare `<ViewTransition>` so it glides instead of jumping. See `references/patterns.md` → Layout Displacement Morph.
+Only content inside an activated boundary animates position — everything else teleports to its new layout spot. Wrap the sibling content below a growing/shrinking list in a bare `<ViewTransition>` so it glides instead of jumping. See [Layout Displacement Morph](references/patterns.md#layout-displacement-morph).
 
 ### Composing Shared Elements with List Identity
 
@@ -276,7 +276,7 @@ Directional reveal:
 </Suspense>
 ```
 
-For more patterns, see `references/patterns.md`.
+For more patterns, see [references/patterns.md](references/patterns.md).
 
 ---
 
@@ -305,22 +305,22 @@ When a parent VT mounts/unmounts **as one unit** with nested VTs inside it, the 
 
 ## Next.js Integration
 
-For Next.js setup (`experimental.viewTransition` flag, `transitionTypes` prop on `next/link`, App Router patterns, Server Components), see `references/nextjs.md`.
+For Next.js setup (`experimental.viewTransition` flag, `transitionTypes` prop on `next/link`, App Router patterns, Server Components), see [references/nextjs.md](references/nextjs.md).
 
 ---
 
 ## Accessibility
 
-Always add the reduced motion CSS from `references/css-recipes.md` to your global stylesheet.
+Always add the reduced motion CSS from [references/css-recipes.md](references/css-recipes.md#reduced-motion) to your global stylesheet.
 
 ---
 
 ## Reference Files
 
-- **`references/implementation.md`** — Step-by-step implementation workflow.
-- **`references/patterns.md`** — Patterns, animation timing, events API, troubleshooting.
-- **`references/css-recipes.md`** — Ready-to-use CSS animation recipes.
-- **`references/nextjs.md`** — Next.js App Router patterns and Server Component details.
+- **[references/implementation.md](references/implementation.md)** — Step-by-step implementation workflow.
+- **[references/patterns.md](references/patterns.md)** — Patterns, animation timing, events API, troubleshooting.
+- **[references/css-recipes.md](references/css-recipes.md)** — Ready-to-use CSS animation recipes.
+- **[references/nextjs.md](references/nextjs.md)** — Next.js App Router patterns and Server Component details.
 
 ## Full Compiled Document
 
